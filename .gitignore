@@ -1,0 +1,22 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# typescript
+*.tsbuildinfo
+
+# env — never commit real secrets; .env.example is the template
+.env
+.env.local
+.env*.local
+
+# vercel
+.vercel
+
+# misc
+.DS_Store
+*.log
