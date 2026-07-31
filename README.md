@@ -143,7 +143,7 @@ CR_WARNING_MARGIN_BIPS=7000 TEST_CHAT_ID=<your-chat-id> npm run test:alert
 - **Event-log ingestion for sub-minute latency.** The highest-value next step. Polling every 5 minutes is fine for collateral drift but slow for liquidation races; subscribing to `LiquidationStarted`, `FullLiquidationStarted`, `RedemptionDefault`, and `UnderlyingBalanceTooLow` would cut alert latency to roughly one block.
 - **FBTC / FDOGE asset managers** — the registry pattern means this is largely a config change.
 - **Redemption queue depth alerts** — warn minters before redemption congestion, not during.
-- **Web dashboard** — public read-only agent health page for people who don't want a bot.
+- **Richer web dashboard** — the landing page already shows live agent health; next is per-agent history and CR trend over time, so you can see an agent sliding rather than only where it stands now.
 - **Discord / webhook targets** — teams and funds want alerts in their own channels.
 
 ## Traction
@@ -151,4 +151,8 @@ CR_WARNING_MARGIN_BIPS=7000 TEST_CHAT_ID=<your-chat-id> npm run test:alert
 Honest status: Claxon went live during the program and is **running autonomously on mainnet**, but distribution work has only just started — it currently has 1 subscriber (the builder). The bot is public and installable today at [@ClaxonFlareBot](https://t.me/ClaxonFlareBot).
 
 The realistic distribution path is the FAssets agent and liquidator community, which is small and reachable: agent operators have direct financial motivation to monitor their own collateral, and liquidators have motivation to be first to an opportunity. Both are addressable through the Flare community channels rather than broad marketing.
+
+## Licence
+
+[MIT](LICENSE) — free to use, fork, and self-host.
 
