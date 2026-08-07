@@ -45,6 +45,41 @@ export async function saveSnapshot(s: SystemSnapshot) {
     .upsert({ id: "latest", payload: JSON.stringify(s, replacer), updated_at: new Date().toISOString() });
 }
 
+// ---- heartbeat (so silence can be distinguished from "all is well") ----
+//
+// A monitoring product that fails silently is worse than none: subscribers read
+// no-news as good-news. Every poll records its outcome here; /api/health exposes
+// the staleness so an external uptime check (or the landing page) can see that
+// Claxon itself has stopped.
+
+export interface Heartbeat {
+  at: string; // ISO timestamp of the last completed poll attempt
+  ok: boolean;
+  block?: string;
+  agents?: number;
+  error?: string;
+}
+
+export async function loadHeartbeat(): Promise<Heartbeat | null> {
+  const { data } = await supabase()
+    .from("watch_state")
+    .select("payload")
+    .eq("id", "heartbeat")
+    .maybeSingle();
+  if (!data?.payload) return null;
+  try {
+    return JSON.parse(data.payload) as Heartbeat;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveHeartbeat(hb: Heartbeat) {
+  await supabase()
+    .from("watch_state")
+    .upsert({ id: "heartbeat", payload: JSON.stringify(hb), updated_at: new Date().toISOString() });
+}
+
 // ---- alert dedupe (belt-and-braces on top of edge triggering) ----
 
 export async function filterUnsent(keys: string[]): Promise<Set<string>> {

@@ -77,6 +77,19 @@ POST /api/telegram ◄── Telegram webhook (/watch, /status, /stop)
 
 **Security.** Supabase RLS is enabled deny-by-default on all three tables; the server holds the `service_role` key (which bypasses RLS), so the public `anon` key can read nothing — notably not the `subscribers` table, which holds Telegram chat IDs.
 
+### Who watches the watchman
+
+A monitoring product that dies quietly is worse than no monitoring at all, because **subscribers read silence as "nothing is wrong."** Claxon is built so that its own failure is detectable:
+
+- Every poll records a heartbeat — success or failure, with the error message.
+- **`GET /api/health`** is public and unauthenticated (it exposes no secrets). It returns the age of the last completed poll and **HTTP 503 once that exceeds 20 minutes** — four consecutive missed runs. Point any uptime monitor at it and you get paged when Claxon stops.
+- When a poll succeeds after a gap, subscribers are told: *"Claxon was offline for ~N min and has resumed — alerts during that window may have been missed."* Users learn that the silence was a fault, not calm.
+- The landing page shows poller state and time since the last check, so liveness is visible rather than assumed.
+
+```bash
+curl https://claxon-eta.vercel.app/api/health
+```
+
 ## Verification against mainnet
 
 Every component has been exercised against live infrastructure. No mocks.
@@ -87,6 +100,14 @@ Every component has been exercised against live infrastructure. No mocks.
 - **No false positives** — at the production threshold, healthy agents produce `0` alerts. Claxon stays quiet until something actually happens.
 - **Auth** — `/api/poll` returns `401` without the bearer token; the Telegram webhook validates `x-telegram-bot-api-secret-token`.
 - **Persistence** — 8/8 store checks pass against live Supabase, including exact round-trip of a 30-digit bigint.
+
+- **Heartbeat / self-monitoring** — verified by backdating the heartbeat 25 minutes: `/api/health` correctly flipped to `503 stale`, the next poll returned `recovered: true` and sent exactly one recovery notice, and an immediate re-poll returned `recovered: false` (no repeat).
+
+**Automated tests.** The rules engine has a 19-test suite covering every alert type and, most importantly, the edge-triggering property itself — a condition that is merely *true* must stay silent; only one that *became* true may fire. Pure functions, no network, no credentials:
+
+```bash
+npm test
+```
 
 Reproduce the read path yourself in one command, no credentials needed:
 

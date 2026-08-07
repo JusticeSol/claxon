@@ -18,6 +18,10 @@ export const CR_WARNING_MARGIN_BIPS = BigInt(
   process.env.CR_WARNING_MARGIN_BIPS ?? 2000
 );
 
+// Claxon polls every 5 minutes. Four consecutive misses means something is
+// actually broken rather than a single slow run, so treat >20 min as offline.
+export const STALE_AFTER_MS = Number(process.env.STALE_AFTER_MS ?? 20 * 60 * 1000);
+
 export const AGENT_STATUS = [
   "NORMAL",
   "LIQUIDATION",

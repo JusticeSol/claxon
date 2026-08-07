@@ -1,4 +1,6 @@
 import { fetchSystemSnapshot, fmtCr, fmtXrp, type SystemSnapshot } from "@/lib/agents";
+import { loadHeartbeat, type Heartbeat } from "@/lib/store";
+import { STALE_AFTER_MS } from "@/config";
 
 // Live mainnet read, cached for 60s so the page stays fast and we stay polite to the RPC.
 export const revalidate = 60;
@@ -14,6 +16,15 @@ export default async function Home() {
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+
+  let beat: Heartbeat | null = null;
+  try {
+    beat = await loadHeartbeat();
+  } catch {
+    // The page must still render if the store is unreachable.
+  }
+  const beatAgeMs = beat ? Date.now() - Date.parse(beat.at) : null;
+  const pollerOk = beat?.ok === true && beatAgeMs !== null && beatAgeMs < STALE_AFTER_MS;
 
   const agents = snap?.agents ?? [];
   const totalMinted = agents.reduce((acc, a) => acc + a.mintedUBA, 0n);
@@ -84,6 +95,17 @@ export default async function Home() {
                     >
                       {snap.emergencyPaused ? "PAUSED" : snap.mintingPaused ? "MINT OFF" : "NORMAL"}
                     </div>
+                  </div>
+                  <div className="stat">
+                    <div className="stat-label">Poller</div>
+                    <div className={`stat-value ${pollerOk ? "ok" : "bad"}`}>
+                      {pollerOk ? "LIVE" : beat ? "STALE" : "—"}
+                    </div>
+                    {beatAgeMs !== null && (
+                      <div className="stat-label" style={{ marginTop: 6, letterSpacing: 0 }}>
+                        checked {fmtAge(beatAgeMs)} ago
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -161,6 +183,13 @@ export default async function Home() {
       </div>
     </>
   );
+}
+
+function fmtAge(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 90) return `${s}s`;
+  const m = Math.round(s / 60);
+  return m < 90 ? `${m}m` : `${Math.round(m / 60)}h`;
 }
 
 function CrBar({ label, cr, min }: { label: string; cr: bigint; min: bigint }) {
