@@ -10,7 +10,7 @@ Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal 
 | **Telegram bot** | [@ClaxonFlareBot](https://t.me/ClaxonFlareBot) — send `/watch` |
 | **Repo** | https://github.com/JusticeSol/claxon |
 | **Network** | **Flare Mainnet** (chain 14) — live production data, not testnet |
-| **Status** | Running autonomously, polling every ~5 minutes |
+| **Status** | Running autonomously (see [polling cadence](#a-note-on-polling-cadence)) |
 
 ---
 
@@ -66,7 +66,7 @@ FAssets itself is powered by FTSO price feeds and the FDC. Claxon makes that mac
 ## Architecture
 
 ```
-GitHub Actions cron (*/5 min)
+External cron  (every 5 min)
         │  Authorization: Bearer POLL_SECRET
         ▼
 GET /api/poll ──► viem ──► FlareContractRegistry ──► AssetManagerFXRP
@@ -81,7 +81,18 @@ GET /api/poll ──► viem ──► FlareContractRegistry ──► AssetMana
 POST /api/telegram ◄── Telegram webhook (/watch, /status, /stop)
 ```
 
-**Why GitHub Actions rather than Vercel Cron:** Vercel's Hobby tier caps cron at **once per day**, which is useless for liquidation alerts. GitHub Actions runs on a 5-minute schedule for free. In practice GitHub schedules are best-effort and can run late under load — observed intervals of ~5–9 min — which is why the staleness threshold is 20 minutes rather than 10. The poll endpoint is secret-gated so anyone can host the cron.
+### A note on polling cadence
+
+The poll endpoint is deliberately a plain secret-gated `GET`, so **any** scheduler can drive it. That decoupling turned out to matter.
+
+Vercel's Hobby tier caps cron at **once per day** — useless here. GitHub Actions accepts a `*/5` schedule for free, so Claxon shipped on that. Measured over a full day of production runs, GitHub honoured almost none of it: **actual gaps between scheduled runs ranged from 50 to 180 minutes**, with two outright failures. GitHub documents scheduled workflows as best-effort and deprioritises them under load; on a free repo that is severe.
+
+This was caught by Claxon's own heartbeat, which is the system working as designed — and it is worth stating plainly rather than quietly papering over, because it changes what the product honestly promises:
+
+- **Alert latency is currently bounded by the scheduler, not by Claxon.** For collateral drift measured in hours this is still useful; it is not a five-minute guarantee.
+- The offline threshold is therefore set to **90 minutes** by default. A tighter threshold on a throttled scheduler would fire false "Claxon was offline" notices on every late run — turning the alerting product into the noise it exists to prevent.
+
+**The fix is to drive `/api/poll` from a scheduler that honours short intervals** — [cron-job.org](https://cron-job.org) (free, custom `Authorization` header, down to 1 minute), Better Stack, or any always-on host. Once that is in place, set `STALE_AFTER_MS=1200000` (20 min) and the five-minute claim becomes true. The GitHub Actions workflow is retained as a redundant backstop.
 
 **Bigint-safe persistence.** FAsset UBA amounts routinely exceed `Number.MAX_SAFE_INTEGER`, so snapshots serialise bigints as tagged strings and revive them on read. A naive `JSON.stringify` round-trip corrupts balances silently — which would produce confidently wrong alerts.
 
