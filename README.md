@@ -10,7 +10,7 @@ Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal 
 | **Telegram bot** | [@ClaxonFlareBot](https://t.me/ClaxonFlareBot) — send `/watch` |
 | **Repo** | https://github.com/JusticeSol/claxon |
 | **Network** | **Flare Mainnet** (chain 14) — live production data, not testnet |
-| **Status** | Running autonomously, polling every 5 minutes |
+| **Status** | Running autonomously, polling every ~5 minutes |
 
 ---
 
@@ -22,11 +22,21 @@ Today, at the time of writing, **6 agents back ~1,855,673 XRP** of minted FXRP o
 
 Three groups feel this directly:
 
-- **Liquidators** — want to be first to a liquidation opportunity. Being second is worth nothing.
-- **Collateral pool providers** — their capital absorbs the loss when an agent fails.
-- **Minters / FXRP holders** — exposed to the specific agent backing their position.
+- **Agent operators** *(primary user)* — collateral drifts over hours and days as prices move. Getting told "you are approaching your minimum" while there is still time to top up is the difference between adding collateral and being liquidated.
+- **Collateral pool providers** — their capital absorbs the loss when an agent fails, and they have no way to know their chosen agent is deteriorating.
+- **Minters / FXRP holders** — exposed to the specific agent backing their position, including backing shortfalls that precede a default.
 
 Claxon is the missing push notification. It watches every FXRP agent and messages you on Telegram the moment something changes — **before** the loss, not after.
+
+**On latency, honestly.** Claxon polls roughly every five minutes, which suits the problem it targets: collateral erosion is a slow-moving risk measured in hours, and a five-minute warning band is early enough to act on. It is deliberately **not** built to win liquidation races — those are decided in milliseconds by bots with private mempool access, and any project claiming otherwise on a cron schedule is overselling. The liquidation-opportunity alert exists for humans who want visibility into what is happening, not to front-run automated liquidators. Closing that gap properly means event-log ingestion, which is the top item on the roadmap.
+
+## Why this belongs in "Interoperable Asset Products"
+
+FAssets **is** Flare's interoperable asset system — it is how a non-smart-contract chain's asset (XRP) becomes usable on Flare. FXRP is only as trustworthy as the collateral behind it, and that collateral is maintained by a handful of agents whose health is, today, invisible unless you write your own indexer.
+
+An interoperable asset nobody can monitor is an interoperable asset nobody should hold at size. Claxon is not a separate product sitting beside FAssets; it operates directly on `AssetManagerFXRP` state and makes the solvency of the bridge legible to the people whose capital secures it. Better-informed agents top up collateral instead of being liquidated, and better-informed pool providers price their risk — both of which make FXRP itself safer to hold.
+
+The submission brief invites products that solve a **"user, developer, ecosystem, or infrastructure problem."** This is the infrastructure case: the asset layer already exists and works; what is missing is the observability that lets people trust it. That gap is filled here for the entire FXRP agent set on mainnet, not a demo subset.
 
 ## What it watches
 
@@ -71,7 +81,7 @@ GET /api/poll ──► viem ──► FlareContractRegistry ──► AssetMana
 POST /api/telegram ◄── Telegram webhook (/watch, /status, /stop)
 ```
 
-**Why GitHub Actions rather than Vercel Cron:** Vercel's Hobby tier caps cron at **once per day**, which is useless for liquidation alerts. GitHub Actions runs every 5 minutes for free. The poll endpoint is secret-gated so anyone can host the cron.
+**Why GitHub Actions rather than Vercel Cron:** Vercel's Hobby tier caps cron at **once per day**, which is useless for liquidation alerts. GitHub Actions runs on a 5-minute schedule for free. In practice GitHub schedules are best-effort and can run late under load — observed intervals of ~5–9 min — which is why the staleness threshold is 20 minutes rather than 10. The poll endpoint is secret-gated so anyone can host the cron.
 
 **Bigint-safe persistence.** FAsset UBA amounts routinely exceed `Number.MAX_SAFE_INTEGER`, so snapshots serialise bigints as tagged strings and revive them on read. A naive `JSON.stringify` round-trip corrupts balances silently — which would produce confidently wrong alerts.
 

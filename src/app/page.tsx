@@ -170,7 +170,7 @@ export default async function Home() {
               k="AssetManagerFXRP"
               v={snap ? snap.assetManager : "resolved at runtime from the registry"}
             />
-            <Fact k="Poll interval" v="5 minutes (GitHub Actions cron)" />
+            <Fact k="Poll interval" v="~5 minutes (GitHub Actions cron, best-effort)" />
           </div>
         </section>
 
