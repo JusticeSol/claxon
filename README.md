@@ -10,7 +10,7 @@ Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal 
 | **Telegram bot** | [@ClaxonFlareBot](https://t.me/ClaxonFlareBot) — send `/watch` |
 | **Repo** | https://github.com/JusticeSol/claxon |
 | **Network** | **Flare Mainnet** (chain 14) — live production data, not testnet |
-| **Status** | Running autonomously (see [polling cadence](#a-note-on-polling-cadence)) |
+| **Status** | Running autonomously — polls every 5 min, self-monitored |
 
 ---
 
@@ -18,7 +18,7 @@ Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal 
 
 FAssets turns XRP into FXRP on Flare, and the whole system is backed by **agents** who post collateral. When an agent's collateral ratio falls, they get liquidated — and liquidation is where money is made and lost.
 
-Today, at the time of writing, **6 agents back ~1,855,673 XRP** of minted FXRP on mainnet. All of that state is readable on-chain, and **none of it is pushed to anyone.** If you have exposure, your only options are to poll a block explorer by hand or write your own indexer.
+Today, at the time of writing, **6 agents back ~1.8 million XRP** of minted FXRP on mainnet (live figure on the [dashboard](https://claxon-eta.vercel.app)). All of that state is readable on-chain, and **none of it is pushed to anyone.** If you have exposure, your only options are to poll a block explorer by hand or write your own indexer.
 
 Three groups feel this directly:
 
@@ -28,7 +28,7 @@ Three groups feel this directly:
 
 Claxon is the missing push notification. It watches every FXRP agent and messages you on Telegram the moment something changes — **before** the loss, not after.
 
-**On latency, honestly.** Claxon polls roughly every five minutes, which suits the problem it targets: collateral erosion is a slow-moving risk measured in hours, and a five-minute warning band is early enough to act on. It is deliberately **not** built to win liquidation races — those are decided in milliseconds by bots with private mempool access, and any project claiming otherwise on a cron schedule is overselling. The liquidation-opportunity alert exists for humans who want visibility into what is happening, not to front-run automated liquidators. Closing that gap properly means event-log ingestion, which is the top item on the roadmap.
+**On latency, honestly.** Claxon polls every five minutes, which suits the problem it targets: collateral erosion is a slow-moving risk measured in hours, and a five-minute warning band is early enough to act on. It is deliberately **not** built to win liquidation races — those are decided in milliseconds by bots with private mempool access, and any project claiming otherwise on a cron schedule is overselling. The liquidation-opportunity alert exists for humans who want visibility into what is happening, not to front-run automated liquidators. Closing that gap properly means event-log ingestion, which is the top item on the roadmap.
 
 ## Why this belongs in "Interoperable Asset Products"
 
@@ -66,7 +66,7 @@ FAssets itself is powered by FTSO price feeds and the FDC. Claxon makes that mac
 ## Architecture
 
 ```
-External cron  (every 5 min)
+cron-job.org  (every 5 min)
         │  Authorization: Bearer POLL_SECRET
         ▼
 GET /api/poll ──► viem ──► FlareContractRegistry ──► AssetManagerFXRP
@@ -87,12 +87,21 @@ The poll endpoint is deliberately a plain secret-gated `GET`, so **any** schedul
 
 Vercel's Hobby tier caps cron at **once per day** — useless here. GitHub Actions accepts a `*/5` schedule for free, so Claxon shipped on that. Measured over a full day of production runs, GitHub honoured almost none of it: **actual gaps between scheduled runs ranged from 50 to 180 minutes**, with two outright failures. GitHub documents scheduled workflows as best-effort and deprioritises them under load; on a free repo that is severe.
 
-This was caught by Claxon's own heartbeat, which is the system working as designed — and it is worth stating plainly rather than quietly papering over, because it changes what the product honestly promises:
+**Claxon's own heartbeat is what caught this** — the self-monitoring worked exactly as designed, on its first real fault. It also exposed a second-order bug worth recording: with the offline threshold at 20 minutes, every throttled run looked like an outage, so subscribers received spurious *"Claxon was offline and has resumed"* notices. A monitoring product manufacturing false alarms is precisely the failure it exists to prevent.
 
-- **Alert latency is currently bounded by the scheduler, not by Claxon.** For collateral drift measured in hours this is still useful; it is not a five-minute guarantee.
-- The offline threshold is therefore set to **90 minutes** by default. A tighter threshold on a throttled scheduler would fire false "Claxon was offline" notices on every late run — turning the alerting product into the noise it exists to prevent.
+**Resolution.** Polling now runs from [cron-job.org](https://cron-job.org) (free tier, custom `Authorization` header), with the GitHub Actions workflow retained as a redundant backstop. Because `/api/poll` is scheduler-agnostic, this required no code change — only a new caller.
 
-**The fix is to drive `/api/poll` from a scheduler that honours short intervals** — [cron-job.org](https://cron-job.org) (free, custom `Authorization` header, down to 1 minute), Better Stack, or any always-on host. Once that is in place, set `STALE_AFTER_MS=1200000` (20 min) and the five-minute claim becomes true. The GitHub Actions workflow is retained as a redundant backstop.
+Measured after the switch:
+
+| | GitHub Actions | cron-job.org |
+|---|---|---|
+| Interval between runs | 50–180 min | **4 min 59 s** |
+| Max observed heartbeat age | >1900 s | **259 s** |
+| Failures | 2 in one day | none observed |
+
+Current production settings: polls every **5 minutes**, offline threshold `STALE_AFTER_MS=1200000` (**20 minutes** — four missed runs). Verify either claim yourself at [`/api/health`](https://claxon-eta.vercel.app/api/health); `ageSeconds` should never exceed ~300.
+
+The general lesson is in the architecture: **the poll endpoint is a plain secret-gated `GET` precisely so the scheduler is swappable.** When the free scheduler proved unreliable, replacing it cost one configuration change rather than a rewrite.
 
 **Bigint-safe persistence.** FAsset UBA amounts routinely exceed `Number.MAX_SAFE_INTEGER`, so snapshots serialise bigints as tagged strings and revive them on read. A naive `JSON.stringify` round-trip corrupts balances silently — which would produce confidently wrong alerts.
 

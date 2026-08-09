@@ -170,7 +170,7 @@ export default async function Home() {
               k="AssetManagerFXRP"
               v={snap ? snap.assetManager : "resolved at runtime from the registry"}
             />
-            <Fact k="Poll interval" v="cron-driven · see repo on cadence" />
+            <Fact k="Poll interval" v="every 5 minutes · offline detected within 20" />
           </div>
         </section>
 
