@@ -89,7 +89,7 @@ export default async function Home() {
         <p className="sub">
           FXRP is backed by agents posting collateral. When an agent&apos;s ratio falls toward its
           enforced minimum, it gets liquidated. That state is public on-chain and nobody is told.
-          Claxon watches every agent and messages you on Telegram the moment it moves — while there
+          Claxon watches every agent and messages you on Telegram the moment it moves, while there
           is still time to top up.
         </p>
 
@@ -106,8 +106,8 @@ export default async function Home() {
       <section className="band">
         <p className="band-title">Collateral ratio · every agent, live</p>
         <p className="band-note">
-          Needle reads collateral ÷ enforced minimum. Red arc is below minimum — liquidation
-          territory. Amber is the warning band where Claxon alerts.
+          Needle reads collateral ÷ enforced minimum. Red arc is below minimum, where liquidation
+          happens. Amber is the warning band where Claxon alerts.
         </p>
 
         {error && (
@@ -162,7 +162,7 @@ export default async function Home() {
             Agent status leaves NORMAL for LIQUIDATION or FULL_LIQUIDATION.
           </Row>
           <Row tone="var(--amber)" name="Ratio in warning band">
-            Vault or pool collateral enters the margin above its enforced minimum — the early
+            Vault or pool collateral enters the margin above its enforced minimum. The early
             warning, while topping up is still possible.
           </Row>
           <Row tone="var(--green)" name="Liquidation open">
