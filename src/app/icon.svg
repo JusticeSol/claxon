@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="10" fill="#17150f"/>
+  <!-- scale arc: safe portion -->
+  <path d="M 14.4 44 A 24 24 0 1 1 49.6 44" fill="none" stroke="#efe9dc" stroke-width="7" stroke-linecap="butt"/>
+  <!-- redline: below the enforced minimum -->
+  <path d="M 14.4 44 A 24 24 0 0 1 14.4 20" fill="none" stroke="#c62828" stroke-width="7"/>
+  <!-- needle -->
+  <line x1="32" y1="40" x2="43" y2="24" stroke="#efe9dc" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="32" cy="40" r="4.5" fill="#efe9dc"/>
+</svg>

@@ -134,7 +134,17 @@ export function fmtXrp(uba: bigint): string {
   const abs = neg ? -uba : uba;
   const whole = abs / 1_000_000n;
   const frac = (abs % 1_000_000n).toString().padStart(6, "0").slice(0, 2);
-  return `${neg ? "-" : ""}${whole}.${frac} XRP`;
+  // Group the integer part: six-figure balances are unreadable without it.
+  const grouped = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${neg ? "-" : ""}${grouped}.${frac} XRP`;
+}
+
+/** Compact form for headline totals, e.g. 1.82M XRP. */
+export function fmtXrpShort(uba: bigint): string {
+  const whole = Number(uba / 1_000_000n);
+  if (whole >= 1_000_000) return `${(whole / 1_000_000).toFixed(2)}M XRP`;
+  if (whole >= 1_000) return `${(whole / 1_000).toFixed(1)}k XRP`;
+  return `${whole} XRP`;
 }
 
 export function fmtCr(bips: bigint): string {

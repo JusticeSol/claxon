@@ -1,4 +1,4 @@
-import { fetchSystemSnapshot, fmtCr, fmtXrp, type SystemSnapshot } from "@/lib/agents";
+import { fetchSystemSnapshot, fmtCr, fmtXrp, fmtXrpShort, type SystemSnapshot } from "@/lib/agents";
 import { loadHeartbeat, type Heartbeat } from "@/lib/store";
 import { STALE_AFTER_MS } from "@/config";
 
@@ -22,6 +22,14 @@ const MAX = 4;
 function polar(r: number, deg: number): [number, number] {
   const rad = (deg * Math.PI) / 180;
   return [CX + r * Math.cos(rad), CY - r * Math.sin(rad)];
+}
+
+/** Small chevron just past full scale, for needles pinned at the stop. */
+function pegMarker(): string {
+  const [ax, ay] = polar(R + 6, A1 + 4);
+  const [bx, by] = polar(R + 14, A1);
+  const [cx2, cy2] = polar(R + 6, A1 - 4);
+  return `${ax},${ay} ${bx},${by} ${cx2},${cy2}`;
 }
 
 function arc(r: number, from: number, to: number): string {
@@ -77,9 +85,8 @@ export default async function Home() {
             </span>
           </span>
           {snap && (
-            <span className="lamp lamp-off">
-              <span className="bulb" />
-              {agents.length} agents · {fmtXrp(totalMinted)} backed
+            <span className="scope">
+              {agents.length} agents watched · {fmtXrpShort(totalMinted)} backed
             </span>
           )}
         </div>
@@ -165,7 +172,7 @@ export default async function Home() {
             Vault or pool collateral enters the margin above its enforced minimum. The early
             warning, while topping up is still possible.
           </Row>
-          <Row tone="var(--green)" name="Liquidation open">
+          <Row tone="var(--ink)" name="Liquidation open">
             A position becomes liquidatable, with the amount available and the premium on offer.
           </Row>
           <Row tone="var(--red)" name="Backing shortfall">
@@ -192,6 +199,49 @@ export default async function Home() {
           />
           <PlateRow k="Poll interval" v="5 minutes · offline detected within 20" />
           <PlateRow k="Holds" v="no contracts deployed · no funds · no approvals" />
+        </div>
+      </section>
+
+      <section className="band">
+        <p className="band-title">Start watching</p>
+        <div className="start">
+          <div className="start-steps">
+            <div className="step">
+              <span className="step-n">1</span>
+              <span>
+                Open <a href={BOT}>@ClaxonFlareBot</a>
+              </span>
+            </div>
+            <div className="step">
+              <span className="step-n">2</span>
+              <span>
+                Send <code>/watch</code>
+              </span>
+            </div>
+            <div className="step">
+              <span className="step-n">3</span>
+              <span>Alerts arrive when something moves</span>
+            </div>
+          </div>
+          <div className="start-cmds">
+            <div>
+              <code>/watch</code> subscribe to alerts
+            </div>
+            <div>
+              <code>/status</code> live reading of every agent
+            </div>
+            <div>
+              <code>/stop</code> unsubscribe
+            </div>
+            <p className="start-note">
+              No wallet, no approvals, no signatures. Claxon only reads the chain.
+            </p>
+          </div>
+        </div>
+        <div className="actions">
+          <a className="btn btn-solid" href={BOT}>
+            Start on Telegram
+          </a>
         </div>
       </section>
 
@@ -229,7 +279,7 @@ function Gauge({
   });
 
   return (
-    <svg viewBox="0 0 200 145" role="img" aria-label={`${caption} ${reading}`}>
+    <svg viewBox="0 0 200 172" role="img" aria-label={`${caption} ${reading}`}>
       {/* full scale */}
       <path d={arc(R, A0, A1)} fill="none" stroke="var(--rule)" strokeWidth="9" />
       {/* danger: below the enforced minimum */}
@@ -261,16 +311,26 @@ function Gauge({
         MIN
       </text>
 
+      {/* off-scale marker: without it a pegged needle reads as a broken gauge */}
+      {ratio > MAX && (
+        <polygon
+          points={pegMarker()}
+          fill="var(--ink)"
+          aria-label="above full scale"
+        />
+      )}
+
       {/* needle */}
       <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--ink)" strokeWidth="3.4" />
       <circle cx={CX} cy={CY} r="6" fill="var(--ink)" />
 
-      <text x={CX} y={CY + 30} fontSize="21" fontWeight="800" fill="var(--ink)" textAnchor="middle">
+      {/* Readout sits in the open bottom of the dial, clear of the needle hub. */}
+      <text x={CX} y={CY + 58} fontSize="25" fontWeight="800" fill="var(--ink)" textAnchor="middle">
         {reading}
       </text>
       <text
         x={CX}
-        y={CY + 43}
+        y={CY + 73}
         fontSize="8.5"
         fill="var(--ink-soft)"
         textAnchor="middle"
