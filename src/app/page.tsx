@@ -2,11 +2,34 @@ import { fetchSystemSnapshot, fmtCr, fmtXrp, type SystemSnapshot } from "@/lib/a
 import { loadHeartbeat, type Heartbeat } from "@/lib/store";
 import { STALE_AFTER_MS } from "@/config";
 
-// Live mainnet read, cached for 60s so the page stays fast and we stay polite to the RPC.
+// Live mainnet read, cached 60s: fast page, polite to the RPC.
 export const revalidate = 60;
 
 const BOT = "https://t.me/ClaxonFlareBot";
 const REPO = "https://github.com/JusticeSol/claxon";
+
+// ---- gauge geometry -------------------------------------------------------
+// A 240° sweep, the way a tachometer reads: rest at lower-left, redline first.
+// The needle tracks collateral ratio ÷ enforced minimum, so 1.0 is always the
+// liquidation threshold no matter which collateral type is being shown.
+const R = 70;
+const CX = 100;
+const CY = 90;
+const A0 = 210; // ratio 0
+const A1 = -30; // ratio MAX
+const MAX = 4;
+
+function polar(r: number, deg: number): [number, number] {
+  const rad = (deg * Math.PI) / 180;
+  return [CX + r * Math.cos(rad), CY - r * Math.sin(rad)];
+}
+
+function arc(r: number, from: number, to: number): string {
+  const [x0, y0] = polar(r, from);
+  const [x1, y1] = polar(r, to);
+  const large = Math.abs(from - to) > 180 ? 1 : 0;
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
 
 export default async function Home() {
   let snap: SystemSnapshot | null = null;
@@ -21,167 +44,271 @@ export default async function Home() {
   try {
     beat = await loadHeartbeat();
   } catch {
-    // The page must still render if the store is unreachable.
+    // page must render even if the store is unreachable
   }
-  const beatAgeMs = beat ? Date.now() - Date.parse(beat.at) : null;
-  const pollerOk = beat?.ok === true && beatAgeMs !== null && beatAgeMs < STALE_AFTER_MS;
+  const beatAge = beat ? Date.now() - Date.parse(beat.at) : null;
+  const pollerOk = beat?.ok === true && beatAge !== null && beatAge < STALE_AFTER_MS;
 
   const agents = snap?.agents ?? [];
   const totalMinted = agents.reduce((acc, a) => acc + a.mintedUBA, 0n);
-  const atRisk = agents.filter((a) => a.status !== 0).length;
+  const alarm = agents.some((a) => a.status !== 0) || !!snap?.emergencyPaused;
 
   return (
-    <>
-      <div className="hazard" />
-      <div className="wrap">
-        <header className="hero">
-          <h1 className="title">
-            Clax<span>on</span>
-          </h1>
-          <p className="tagline">Claxon sounds before liquidation does.</p>
-          <p className="sub">
-            Telegram alerts for FXRP agent health on Flare. Claxon watches every FAssets agent on
-            mainnet and messages you the moment collateral slips, a liquidation opens, backing falls
-            short, or the system pauses — so you find out before the loss, not after.
-          </p>
-          <div className="cta-row">
-            <a className="btn btn-primary" href={BOT}>
-              Start on Telegram →
-            </a>
-            <a className="btn btn-ghost" href={REPO}>
-              View source
-            </a>
-          </div>
-        </header>
+    <div className="sheet">
+      <header className="masthead">
+        <h1 className="wordmark">Claxon</h1>
+        <div className="rule-heavy" />
+        <div className="strapline">
+          <span>FXRP agent collateral · Flare mainnet</span>
+          <span>{snap ? `Block ${snap.blockNumber.toString()}` : "chain unavailable"}</span>
+        </div>
+        <div className="rule-hair" />
 
-        <section className="section">
-          <div className="section-head">
-            <h2>Live agent health · Flare mainnet</h2>
-            <span className="meta">
-              {snap ? `block ${snap.blockNumber.toString()} · refreshed every 60s` : "unavailable"}
-            </span>
-          </div>
-
-          <div className="panel">
-            {error && (
-              <p className="err">
-                Live chain read failed: {error}
-                <br />
-                The alerting poller runs independently of this page and is unaffected.
-              </p>
-            )}
-
-            {snap && (
-              <>
-                <div className="stats">
-                  <div className="stat">
-                    <div className="stat-label">Agents tracked</div>
-                    <div className="stat-value">{agents.length}</div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-label">FXRP backed</div>
-                    <div className="stat-value">{fmtXrp(totalMinted)}</div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-label">In liquidation</div>
-                    <div className={`stat-value ${atRisk ? "bad" : "ok"}`}>{atRisk}</div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-label">System</div>
-                    <div
-                      className={`stat-value ${
-                        snap.emergencyPaused ? "bad" : snap.mintingPaused ? "warn" : "ok"
-                      }`}
-                    >
-                      {snap.emergencyPaused ? "PAUSED" : snap.mintingPaused ? "MINT OFF" : "NORMAL"}
-                    </div>
-                  </div>
-                  <div className="stat">
-                    <div className="stat-label">Poller</div>
-                    <div className={`stat-value ${pollerOk ? "ok" : "bad"}`}>
-                      {pollerOk ? "LIVE" : beat ? "STALE" : "—"}
-                    </div>
-                    {beatAgeMs !== null && (
-                      <div className="stat-label" style={{ marginTop: 6, letterSpacing: 0 }}>
-                        checked {fmtAge(beatAgeMs)} ago
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {agents.map((a) => (
-                  <div className="agent" key={a.vault}>
-                    <span className="addr">
-                      {a.status === 0 ? "🟢" : "🔴"} {a.vault.slice(0, 10)}…{a.vault.slice(-8)}
-                      {a.status !== 0 && <strong className="bad"> {a.statusName}</strong>}
-                    </span>
-                    <span className="agent-minted">{fmtXrp(a.mintedUBA)} backed</span>
-                    <div className="bars">
-                      <CrBar label="vault CR" cr={a.vaultCrBips} min={a.minVaultCrBips} />
-                      <CrBar label="pool CR" cr={a.poolCrBips} min={a.minPoolCrBips} />
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </section>
-
-        <section className="section">
-          <div className="section-head">
-            <h2>What triggers an alert</h2>
-            <span className="meta">edge-triggered — fires on change, not on state</span>
-          </div>
-          <div className="panel">
-            <div className="rules">
-              <Rule sev="critical" color="bad" title="Liquidation started">
-                Agent status moves out of NORMAL into LIQUIDATION or FULL_LIQUIDATION.
-              </Rule>
-              <Rule sev="warning" color="warn" title="Collateral ratio slipping">
-                Vault or pool CR enters the warning band above its enforced minimum — the early
-                warning, before liquidation is possible.
-              </Rule>
-              <Rule sev="opportunity" color="ok" title="Liquidation open">
-                A position becomes liquidatable, with the available amount and the premium on offer.
-              </Rule>
-              <Rule sev="critical" color="bad" title="Backing shortfall">
-                An agent&apos;s underlying XRP balance falls below what its minted FXRP requires.
-              </Rule>
-              <Rule sev="critical" color="bad" title="System pause">
-                Emergency pause or minting pause on the FXRP asset manager.
-              </Rule>
-              <Rule sev="quiet" color="" title="Silence by default">
-                Alerts fire only on transitions, backed by a 6-hour dedupe. A stuck agent produces
-                one alert, not one every five minutes.
-              </Rule>
-            </div>
-          </div>
-        </section>
-
-        <section className="section">
-          <div className="section-head">
-            <h2>Deployment</h2>
-            <span className="meta">read-only · no contracts deployed · no funds held</span>
-          </div>
-          <div className="panel facts">
-            <Fact k="Network" v="Flare Mainnet (chain 14)" />
-            <Fact k="FlareContractRegistry" v="0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019" />
-            <Fact
-              k="AssetManagerFXRP"
-              v={snap ? snap.assetManager : "resolved at runtime from the registry"}
-            />
-            <Fact k="Poll interval" v="every 5 minutes · offline detected within 20" />
-          </div>
-        </section>
-
-        <footer>
-          <span>Built for Flare Summer Signal · Bounty 1 — Interoperable Asset Products</span>
-          <span>
-            <a href={REPO}>github.com/JusticeSol/claxon</a>
+        <div className="lamps">
+          <span className="lamp">
+            <span className={`bulb ${alarm ? "on-red" : ""}`} />
+            <span className={alarm ? "" : "lamp-off"}>{alarm ? "Alarm" : "No alarm"}</span>
           </span>
-        </footer>
-      </div>
-    </>
+          <span className="lamp">
+            <span className={`bulb ${pollerOk ? "on-green" : "on-red"}`} />
+            <span className={pollerOk ? "" : ""}>
+              {pollerOk ? "Watch active" : beat ? "Watch stale" : "Watch unknown"}
+              {beatAge !== null && ` · ${fmtAge(beatAge)} ago`}
+            </span>
+          </span>
+          {snap && (
+            <span className="lamp lamp-off">
+              <span className="bulb" />
+              {agents.length} agents · {fmtXrp(totalMinted)} backed
+            </span>
+          )}
+        </div>
+        <div className="rule-hair" />
+
+        <p className="lede">Claxon sounds before liquidation does.</p>
+        <p className="sub">
+          FXRP is backed by agents posting collateral. When an agent&apos;s ratio falls toward its
+          enforced minimum, it gets liquidated. That state is public on-chain and nobody is told.
+          Claxon watches every agent and messages you on Telegram the moment it moves — while there
+          is still time to top up.
+        </p>
+
+        <div className="actions">
+          <a className="btn btn-solid" href={BOT}>
+            Start on Telegram
+          </a>
+          <a className="btn btn-out" href={REPO}>
+            Read the source
+          </a>
+        </div>
+      </header>
+
+      <section className="band">
+        <p className="band-title">Collateral ratio · every agent, live</p>
+        <p className="band-note">
+          Needle reads collateral ÷ enforced minimum. Red arc is below minimum — liquidation
+          territory. Amber is the warning band where Claxon alerts.
+        </p>
+
+        {error && (
+          <p className="notice">
+            <strong>Live chain read failed.</strong>
+            <br />
+            {error}
+            <br />
+            The alerting poller runs independently of this page and is unaffected.
+          </p>
+        )}
+
+        {snap && (
+          <div className="dials">
+            {agents.map((a) => {
+              const vault = Number(a.vaultCrBips) / Number(a.minVaultCrBips);
+              const pool = Number(a.poolCrBips) / Number(a.minPoolCrBips);
+              const binding = vault <= pool ? "vault" : "pool";
+              return (
+                <div className={`dial ${a.status !== 0 ? "alarm" : ""}`} key={a.vault}>
+                  <Gauge
+                    ratio={Math.min(vault, pool)}
+                    reading={binding === "vault" ? fmtCr(a.vaultCrBips) : fmtCr(a.poolCrBips)}
+                    caption={`${binding} collateral`}
+                  />
+                  <div className="dial-addr">
+                    {a.vault.slice(0, 8)}…{a.vault.slice(-6)}
+                  </div>
+                  <div className="dial-readout">
+                    vault {fmtCr(a.vaultCrBips)} · min {fmtCr(a.minVaultCrBips)}
+                    <br />
+                    pool {fmtCr(a.poolCrBips)} · min {fmtCr(a.minPoolCrBips)}
+                    <br />
+                    {fmtXrp(a.mintedUBA)} backed
+                  </div>
+                  {a.status !== 0 && <div className="dial-flag">{a.statusName}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="band">
+        <p className="band-title">When the alarm sounds</p>
+        <p className="band-note">
+          Edge-triggered: an alert fires when a condition <em>becomes</em> true, never while it
+          merely stays true.
+        </p>
+        <div className="legend">
+          <Row tone="var(--red)" name="Liquidation started">
+            Agent status leaves NORMAL for LIQUIDATION or FULL_LIQUIDATION.
+          </Row>
+          <Row tone="var(--amber)" name="Ratio in warning band">
+            Vault or pool collateral enters the margin above its enforced minimum — the early
+            warning, while topping up is still possible.
+          </Row>
+          <Row tone="var(--green)" name="Liquidation open">
+            A position becomes liquidatable, with the amount available and the premium on offer.
+          </Row>
+          <Row tone="var(--red)" name="Backing shortfall">
+            An agent&apos;s underlying XRP falls below what its minted FXRP requires.
+          </Row>
+          <Row tone="var(--red)" name="System pause">
+            Emergency pause or minting pause on the FXRP asset manager.
+          </Row>
+          <Row tone="transparent" name="Otherwise, silence">
+            A stuck agent produces one alert, not one every five minutes. Backed by a 6-hour
+            dedupe and 19 tests over the rules engine.
+          </Row>
+        </div>
+      </section>
+
+      <section className="band">
+        <p className="band-title">Instrument details</p>
+        <div className="plate">
+          <PlateRow k="Network" v="Flare mainnet · chain 14" />
+          <PlateRow k="Contract registry" v="0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019" />
+          <PlateRow
+            k="AssetManagerFXRP"
+            v={snap ? snap.assetManager : "resolved at runtime from the registry"}
+          />
+          <PlateRow k="Poll interval" v="5 minutes · offline detected within 20" />
+          <PlateRow k="Holds" v="no contracts deployed · no funds · no approvals" />
+        </div>
+      </section>
+
+      <footer>
+        <span>Flare Summer Signal · Bounty 1</span>
+        <span>
+          <a href={REPO}>github.com/JusticeSol/claxon</a>
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+function Gauge({
+  ratio,
+  reading,
+  caption,
+}: {
+  ratio: number;
+  reading: string;
+  caption: string;
+}) {
+  const sweep = A0 - A1;
+  const at = (r: number) => A0 - sweep * Math.min(Math.max(r / MAX, 0), 1);
+
+  const needle = at(ratio);
+  const [nx, ny] = polar(R - 15, needle);
+  const [minX, minY] = polar(R + 13, at(1));
+
+  const ticks = [0, 1, 2, 3, 4].map((t) => {
+    const a = at(t);
+    const [x0, y0] = polar(R - 9, a);
+    const [x1, y1] = polar(R + 1, a);
+    return { t, x0, y0, x1, y1 };
+  });
+
+  return (
+    <svg viewBox="0 0 200 145" role="img" aria-label={`${caption} ${reading}`}>
+      {/* full scale */}
+      <path d={arc(R, A0, A1)} fill="none" stroke="var(--rule)" strokeWidth="9" />
+      {/* danger: below the enforced minimum */}
+      <path d={arc(R, at(0), at(1))} fill="none" stroke="var(--red)" strokeWidth="9" />
+      {/* warning band Claxon alerts in */}
+      <path d={arc(R, at(1), at(1.2))} fill="none" stroke="var(--amber)" strokeWidth="9" />
+
+      {ticks.map((k) => (
+        <line
+          key={k.t}
+          x1={k.x0}
+          y1={k.y0}
+          x2={k.x1}
+          y2={k.y1}
+          stroke="var(--ink)"
+          strokeWidth={k.t === 1 ? 2.2 : 1.2}
+        />
+      ))}
+
+      <text
+        x={minX}
+        y={minY}
+        fontSize="9"
+        fontWeight="700"
+        fill="var(--red)"
+        textAnchor="middle"
+        letterSpacing="0.1"
+      >
+        MIN
+      </text>
+
+      {/* needle */}
+      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--ink)" strokeWidth="3.4" />
+      <circle cx={CX} cy={CY} r="6" fill="var(--ink)" />
+
+      <text x={CX} y={CY + 30} fontSize="21" fontWeight="800" fill="var(--ink)" textAnchor="middle">
+        {reading}
+      </text>
+      <text
+        x={CX}
+        y={CY + 43}
+        fontSize="8.5"
+        fill="var(--ink-soft)"
+        textAnchor="middle"
+        letterSpacing="1.3"
+      >
+        {caption.toUpperCase()}
+      </text>
+    </svg>
+  );
+}
+
+function Row({
+  tone,
+  name,
+  children,
+}: {
+  tone: string;
+  name: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="legend-row">
+      <span
+        className="legend-dot"
+        style={{ background: tone, border: tone === "transparent" ? "1.5px solid var(--rule)" : "none" }}
+      />
+      <span className="legend-name">{name}</span>
+      <span className="legend-desc">{children}</span>
+    </div>
+  );
+}
+
+function PlateRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="plate-row">
+      <span className="plate-k">{k}</span>
+      <span className="plate-v">{v}</span>
+    </div>
   );
 }
 
@@ -190,54 +317,4 @@ function fmtAge(ms: number): string {
   if (s < 90) return `${s}s`;
   const m = Math.round(s / 60);
   return m < 90 ? `${m}m` : `${Math.round(m / 60)}h`;
-}
-
-function CrBar({ label, cr, min }: { label: string; cr: bigint; min: bigint }) {
-  // Scale the bar so the enforced minimum sits at 40% of the width; clamp the fill at 100%.
-  const ratio = min > 0n ? Number(cr) / Number(min) : 0;
-  const pct = Math.min(100, ratio * 40);
-  const tone = ratio >= 1.6 ? "var(--green)" : ratio >= 1.2 ? "var(--amber)" : "var(--red)";
-  return (
-    <div className="bar-item">
-      <div className="bar-top">
-        <span>{label}</span>
-        <span>
-          <b>{fmtCr(cr)}</b> / min {fmtCr(min)}
-        </span>
-      </div>
-      <div className="bar">
-        <div className="bar-fill" style={{ width: `${pct}%`, background: tone }} />
-        <div className="bar-min" style={{ left: "40%" }} />
-      </div>
-    </div>
-  );
-}
-
-function Rule({
-  sev,
-  color,
-  title,
-  children,
-}: {
-  sev: string;
-  color: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rule">
-      <div className={`rule-sev ${color}`}>{sev}</div>
-      <div className="rule-title">{title}</div>
-      <div className="rule-body">{children}</div>
-    </div>
-  );
-}
-
-function Fact({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="fact">
-      <span className="fact-k">{k}</span>
-      <span className="fact-v">{v}</span>
-    </div>
-  );
 }
