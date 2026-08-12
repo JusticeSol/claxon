@@ -2,12 +2,12 @@
 
 **Claxon sounds before liquidation does.**
 
-Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal. Bounty 1 (Interoperable Asset Products)**.
+Telegram alerts for FXRP agent health on Flare. Built for **Flare Summer Signal, Bounty 1 (Interoperable Asset Products)**.
 
 | | |
 |---|---|
 | **Live app** | https://claxon-eta.vercel.app |
-| **Telegram bot** | [@ClaxonFlareBot](https://t.me/ClaxonFlareBot) :- send `/watch` |
+| **Telegram bot** | [@ClaxonFlareBot](https://t.me/ClaxonFlareBot), send `/watch` |
 | **Repo** | https://github.com/JusticeSol/claxon |
 | **Network** | **Flare Mainnet** (chain 14): live production data, not testnet |
 | **Status** | Running autonomously, polls every 5 min, self-monitored |
@@ -26,7 +26,7 @@ Three groups feel this directly:
 - **Collateral pool providers**: their capital absorbs the loss when an agent fails, and they have no way to know their chosen agent is deteriorating.
 - **Minters / FXRP holders**: exposed to the specific agent backing their position, including backing shortfalls that precede a default.
 
-Claxon is the missing push notification. It watches every FXRP agent and messages you on Telegram the moment something changes. **before** the loss, not after.
+Claxon is the missing push notification. It watches every FXRP agent and messages you on Telegram the moment something changes, **before** the loss, not after.
 
 **On latency, honestly.** Claxon polls every five minutes, which suits the problem it targets: collateral erosion is a slow-moving risk measured in hours, and a five-minute warning band is early enough to act on. It is deliberately **not** built to win liquidation races as those are decided in milliseconds by bots with private mempool access, and any project claiming otherwise on a cron schedule is overselling. The liquidation-opportunity alert exists for humans who want visibility into what is happening, not to front-run automated liquidators. Closing that gap properly means event-log ingestion, which is the top item on the roadmap.
 
