@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#17150f"/>
+
+  <!-- instrument face: full scale, 240 degree sweep -->
+  <path d="M 114.5 342 A 164 164 0 1 1 397.5 342"
+        fill="none" stroke="#efe9dc" stroke-width="42" stroke-linecap="butt"/>
+
+  <!-- redline: below the enforced collateral minimum -->
+  <path d="M 114.5 342 A 164 164 0 0 1 114.5 178"
+        fill="none" stroke="#c62828" stroke-width="42"/>
+
+  <!-- warning band -->
+  <path d="M 114.5 178 A 164 164 0 0 1 135.6 148.6"
+        fill="none" stroke="#c8860d" stroke-width="42"/>
+
+  <!-- needle, resting in the safe upper right -->
+  <line x1="256" y1="300" x2="349" y2="176"
+        stroke="#efe9dc" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="300" r="30" fill="#efe9dc"/>
+  <circle cx="256" cy="300" r="12" fill="#17150f"/>
+</svg>
