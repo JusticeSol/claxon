@@ -165,7 +165,9 @@ Claxon was built **from scratch** during Flare Summer Signal. Nothing pre-existe
 - The edge-triggered rules engine and its dedupe layer, the core intellectual work, and what separates this from a naive polling script
 - Telegram bot, webhook handler, and subscriber management
 - Bigint-safe snapshot persistence on Supabase with RLS
-- Secret-gated poll endpoint and the GitHub Actions cron
+- Secret-gated, scheduler-agnostic poll endpoint plus the cron that drives it
+- Self-monitoring heartbeat and public /api/health, after production data showed the first scheduler was silently throttling
+- A 19-test suite over the rules engine, covering the edge-triggering property itself
 - Full mainnet verification, deployment, and the live bot
 
 ## Setup (self-hosting)
@@ -199,7 +201,9 @@ CR_WARNING_MARGIN_BIPS=7000 TEST_CHAT_ID=<your-chat-id> npm run test:alert
 
 ## Traction
 
-Honest status: Claxon went live during the program and is **running autonomously on mainnet**, but distribution work has only just started, it currently has about 10 subscribers. The bot is public and installable today at [@ClaxonFlareBot](https://t.me/ClaxonFlareBot).
+Claxon is **live on mainnet and running autonomously**, with **6 Telegram subscribers** as of 12 August 2026, real users beyond the builder recruited from the Flare community during the program. The bot is public and installable today at [@ClaxonFlareBot](https://t.me/ClaxonFlareBot).
+
+Reliability over the same period is measurable rather than asserted: since polling moved to a scheduler that keeps time on 9 August, Claxon has run every 5 minutes with **zero missed-poll alerts and zero false alarms**. Current state is public at [`/api/health`](https://claxon-eta.vercel.app/api/health).
 
 The realistic distribution path is the FAssets agent and liquidator community, which is small and reachable: agent operators have direct financial motivation to monitor their own collateral, and liquidators have motivation to be first to an opportunity. Both are addressable through the Flare community channels rather than broad marketing.
 
