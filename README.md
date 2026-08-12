@@ -56,7 +56,7 @@ All read-only, straight from the `AssetManagerFXRP` contract:
 
 This is not a superficial integration, the product *is* Flare state:
 
-- **`FlareContractRegistry` → `AssetManagerFXRP`.** No hardcoded contract address anywhere. The AssetManager is resolved at runtime by name from the registry (`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`, identical on every Flare network). Point `CHAIN_ID` at Coston2 and the same code works with zero edits — and it survives a contract redeployment that would break a hardcoded competitor.
+- **`FlareContractRegistry` → `AssetManagerFXRP`.** No hardcoded contract address anywhere. The AssetManager is resolved at runtime by name from the registry (`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`, identical on every Flare network). Point `CHAIN_ID` at Coston2 and the same code works with zero edits, and it survives a contract redeployment that would break a hardcoded competitor.
 - **No hand-written ABI.** The full `IAssetManager` ABI is imported from the official `@flarenetwork/flare-periphery-contract-artifacts` package, so the interface can't drift from what's deployed.
 - **`getAllAgents` + `getAgentInfo`**: paginated agent discovery, then a 40-field struct read per agent that feeds nearly every rule.
 - **Agent status enum verified against source** (`flare-foundation/fassets`, `AgentInfo.sol`): `NORMAL(0), LIQUIDATION(1), FULL_LIQUIDATION(2), DESTROYING(3), DESTROYED(4)`. Worth noting: some older documentation implies `LIQUIDATION` is 2, it is **1**, confirmed against the Solidity source and the FAssets demo dapp. Getting this wrong silently misreports every agent's state.
@@ -105,7 +105,7 @@ The general lesson is in the architecture: **the poll endpoint is a plain secret
 
 **Bigint-safe persistence.** FAsset UBA amounts routinely exceed `Number.MAX_SAFE_INTEGER`, so snapshots serialise bigints as tagged strings and revive them on read. A naive `JSON.stringify` round-trip corrupts balances silently, which would produce confidently wrong alerts.
 
-**Security.** Supabase RLS is enabled deny-by-default on all three tables; the server holds the `service_role` key (which bypasses RLS), so the public `anon` key can read nothing — notably not the `subscribers` table, which holds Telegram chat IDs.
+**Security.** Supabase RLS is enabled deny-by-default on all three tables; the server holds the `service_role` key (which bypasses RLS), so the public `anon` key can read nothing, notably not the `subscribers` table, which holds Telegram chat IDs.
 
 ### Who watches the watchman
 
@@ -209,5 +209,5 @@ The realistic distribution path is the FAssets agent and liquidator community, w
 
 ## Licence
 
-[MIT](LICENSE) — free to use, fork, and self-host.
+[MIT](LICENSE), free to use, fork, and self-host.
 
